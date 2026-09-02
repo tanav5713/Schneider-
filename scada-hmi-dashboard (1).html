@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SCADA-HMI v4.8</title>
+<style>
+  :root{
+    --bg:#0a0e15;
+    --bg-panel:#0d141f;
+    --bg-panel-2:#0b111a;
+    --bg-input:#0f1722;
+    --border:#1c2735;
+    --border-soft:#141d29;
+    --text:#e6edf5;
+    --text-dim:#8a97a8;
+    --text-faint:#54637a;
+    --cyan:#22d3ee;
+    --cyan-2:#38bdf8;
+    --green:#22c55e;
+    --green-dim:#123521;
+    --amber:#f59e0b;
+    --amber-dim:#3a2a0a;
+    --red:#ef4444;
+    --red-dim:#3a1414;
+    --font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --font-mono:ui-monospace,SFMono-Regular,'Cascadia Mono',Consolas,'Liberation Mono',monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-sans);
+    font-size:14px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{display:flex;flex-direction:column;height:100vh;min-height:600px;}
+
+  /* ---------- Topbar ---------- */
+  .topbar{
+    flex:0 0 60px;height:60px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 20px;border-bottom:1px solid var(--border);background:var(--bg-panel-2);
+    gap:16px; flex-wrap:nowrap; overflow-x:auto;
+  }
+  .tb-left{display:flex;align-items:center;gap:22px;white-space:nowrap;}
+  .logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:15px;letter-spacing:.2px;}
+  .logo .icon-box{
+    width:28px;height:28px;border-radius:6px;background:rgba(34,211,238,.1);
+    display:flex;align-items:center;justify-content:center;color:var(--cyan);border:1px solid rgba(34,211,238,.25);
+  }
+  .tb-meta{display:flex;gap:18px;color:var(--text-dim);font-size:13px;}
+  .tb-meta b{color:var(--text);font-weight:600;}
+  .tb-right{display:flex;align-items:center;gap:18px;white-space:nowrap;}
+  .tb-status{display:flex;align-items:center;gap:16px;padding-right:16px;border-right:1px solid var(--border);font-size:13px;color:var(--text-dim);}
+  .status-pill{display:flex;align-items:center;gap:6px;}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px rgba(34,197,94,.7);flex:0 0 auto;}
+  .dot.grey{background:var(--text-faint);box-shadow:none;}
+  .dot.red{background:var(--red);box-shadow:0 0 6px rgba(239,68,68,.7);}
+  .clock{font-family:var(--font-mono);color:var(--amber);font-size:14px;font-weight:600;letter-spacing:.3px;}
+  .estop-btn{
+    display:flex;align-items:center;gap:7px;background:var(--red);color:#fff;border:none;
+    padding:9px 14px;border-radius:7px;font-weight:700;font-size:12.5px;cursor:pointer;letter-spacing:.3px;
+  }
+  .estop-btn:hover{background:#dc2626;}
+  .estop-btn.active{background:#7f1d1d;color:#fecaca;animation:estop-pulse 1s infinite;}
+  @keyframes estop-pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.55);}50%{box-shadow:0 0 0 6px rgba(239,68,68,0);}}
+
+  /* ---------- Body layout ---------- */
+  .body{flex:1;display:flex;min-height:0;}
+  .sidebar{width:300px;flex:0 0 300px;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--bg-panel-2);}
+  .nav-section-label{font-size:11px;letter-spacing:1.2px;color:var(--text-faint);font-weight:700;padding:18px 22px 10px;}
+  .nav{padding:0 12px;flex:1;}
+  .nav-item{
+    display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:8px;color:var(--text-dim);
+    cursor:pointer;font-size:14px;font-weight:500;margin-bottom:2px;position:relative;border:1px solid transparent;
+  }
+  .nav-item svg{flex:0 0 auto;opacity:.85;}
+  .nav-item:hover{background:var(--bg-panel);color:var(--text);}
+  .nav-item.active{background:rgba(34,211,238,.08);color:var(--cyan);border-color:rgba(34,211,238,.18);}
+  .nav-item.active svg{opacity:1;}
+  .nav-badge{margin-left:auto;background:var(--red);color:#fff;font-size:11px;font-weight:700;border-radius:999px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0 5px;}
+  .sidebar-foot{padding:16px;border-top:1px solid var(--border);}
+  .sim-box{background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;}
+  .sim-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .sim-title{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px;color:var(--text);}
+  .sim-title svg{color:var(--cyan);}
+  .active-badge{background:var(--green-dim);color:var(--green);font-size:10.5px;font-weight:700;letter-spacing:.4px;padding:3px 8px;border-radius:5px;display:flex;align-items:center;gap:5px;}
+  .active-badge .pulse-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .sim-label{font-size:11.5px;color:var(--text-faint);display:flex;justify-content:space-between;margin-bottom:7px;}
+  .sim-label b{color:var(--cyan-2);font-weight:600;}
+  .sim-speeds{display:flex;gap:6px;}
+  .sim-speed-btn{flex:1;padding:6px 0;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-dim);font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--font-mono);}
+  .sim-speed-btn.active{background:rgba(34,211,238,.12);border-color:var(--cyan);color:var(--cyan);}
+  .sidebar-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--text-faint);padding:2px 4px;font-family:var(--font-mono);}
+
+  .main{flex:1;overflow-y:auto;padding:26px 30px 50px;}
+  .page-header{margin-bottom:22px;}
+  .page-header h1{margin:0 0 4px;font-size:20px;font-weight:700;letter-spacing:.1px;}
+  .page-header p{margin:0;color:var(--text-dim);font-size:13.5px;}
+  .page-header-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+
+  /* ---------- Panels / cards ---------- */
+  .panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;padding:20px;}
+  .panel + .panel{margin-top:18px;}
+  .section-label{display:flex;align-items:center;gap:9px;color:var(--cyan);font-weight:700;font-size:12.5px;letter-spacing:.9px;text-transform:uppercase;margin-bottom:16px;}
+  .section-label .rgt{margin-left:auto;color:var(--text-faint);font-weight:500;letter-spacing:.2px;text-transform:none;font-size:12px;}
+
+  .banner{background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;padding:22px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:18px;}
+  .banner-left{display:flex;align-items:center;gap:14px;}
+  .banner-dot{width:12px;height:12px;border-radius:50%;background:var(--text-faint);flex:0 0 auto;}
+  .banner-dot.run{background:var(--green);box-shadow:0 0 10px rgba(34,197,94,.7);animation:pulse 1.4s infinite;}
+  .banner-dot.trip{background:var(--red);box-shadow:0 0 10px rgba(239,68,68,.7);animation:pulse 1s infinite;}
+  .banner-title{font-size:18px;font-weight:700;}
+  .banner-title span{font-weight:800;}
+  .banner-desc{color:var(--text-dim);font-size:13.5px;margin-top:3px;}
+  .banner-right{display:flex;align-items:center;gap:22px;}
+  .mode-block{text-align:right;}
+  .mode-block .lbl{font-size:11px;color:var(--text-faint);letter-spacing:.4px;}
+  .mode-block .val{font-weight:700;color:var(--cyan-2);font-size:14.5px;}
+  .btn{border:none;border-radius:7px;padding:11px 18px;font-weight:700;font-size:13.5px;cursor:pointer;display:flex;align-items:center;gap:8px;}
+  .btn-start{background:var(--green);color:#06210f;}
+  .btn-start:hover{background:#16a34a;}
+  .btn-stop-solid{background:var(--red);color:#fff;}
+  .btn-stop-solid:hover{background:#dc2626;}
+  .btn-outline{background:var(--bg-input);color:var(--text-dim);border:1px solid var(--border);}
+  .btn-outline:hover{color:var(--text);border-color:#2a3646;}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+
+  .grid-nodes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-bottom:18px;}
+  .node-card{background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;padding:18px;position:relative;}
+  .node-tag{flex:0 0 auto;align-self:flex-start;font-size:10.5px;font-weight:700;color:var(--cyan);border:1px solid rgba(34,211,238,.35);background:rgba(34,211,238,.07);padding:3px 8px;border-radius:5px;letter-spacing:.4px;white-space:nowrap;}
+  .node-head{display:flex;align-items:flex-start;gap:11px;margin-bottom:16px;}
+  .node-icon{width:34px;height:34px;border-radius:8px;background:rgba(34,211,238,.08);display:flex;align-items:center;justify-content:center;color:var(--cyan-2);flex:0 0 auto;}
+  .node-head-text{flex:1 1 auto;min-width:0;}
+  .node-name{font-weight:700;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .node-sub{font-size:12px;color:var(--text-dim);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .node-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--text-dim);padding:6px 0;}
+  .node-row b{color:var(--text);font-family:var(--font-mono);font-weight:600;}
+  .node-row b.ok{color:var(--green);}
+
+  .grid-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;}
+  .stat-card{background:var(--bg-panel);border:1px solid var(--border);border-radius:10px;padding:18px 20px;}
+  .stat-card.stopped{border-color:rgba(239,68,68,.4);background:linear-gradient(180deg,rgba(239,68,68,.06),transparent 60%);}
+  .stat-card.running{border-color:rgba(34,197,94,.4);background:linear-gradient(180deg,rgba(34,197,94,.06),transparent 60%);}
+  .stat-label{font-size:12px;color:var(--text-dim);font-weight:600;letter-spacing:.2px;margin-bottom:10px;text-transform:uppercase;}
+  .stat-value{font-family:var(--font-mono);font-size:26px;font-weight:700;line-height:1;}
+  .stat-value.stopped{color:var(--red);}
+  .stat-value.running{color:var(--green);}
+  .stat-value .unit{font-size:15px;font-weight:600;color:var(--text-dim);margin-left:5px;}
+  .stat-foot{display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding-top:12px;border-top:1px solid var(--border-soft);font-size:11.5px;color:var(--text-faint);}
+
+  /* ---------- Motor Control ---------- */
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start;}
+  @media(max-width:980px){.two-col{grid-template-columns:1fr;}}
+  .interlock-row{display:flex;align-items:center;justify-content:space-between;padding:15px 4px;border-bottom:1px solid var(--border-soft);}
+  .interlock-row:first-child{padding-top:2px;}
+  .il-name{font-size:14px;color:var(--text);}
+  .badge{font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:6px;letter-spacing:.3px;}
+  .badge.grey{background:var(--bg-input);color:var(--text-dim);border:1px solid var(--border);}
+  .badge.green{background:var(--green-dim);color:var(--green);}
+  .badge.amber{background:var(--amber-dim);color:var(--amber);}
+  .badge.red{background:var(--red-dim);color:#fca5a5;}
+  .badge.cyan{background:rgba(34,211,238,.1);color:var(--cyan);}
+
+  .ctl-buttons{display:flex;gap:12px;margin-top:16px;}
+  .ctl-buttons .btn{flex:1;justify-content:center;}
+  .full-estop{width:100%;margin-top:12px;background:var(--red-dim);border:1px solid rgba(239,68,68,.4);color:#fca5a5;border-radius:8px;padding:13px;font-weight:700;font-size:13.5px;display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;}
+  .full-estop:hover{background:rgba(239,68,68,.16);}
+  .full-estop.active{background:var(--red);color:#fff;animation:estop-pulse 1s infinite;}
+
+  .mode-toggle{display:flex;background:var(--bg-input);border:1px solid var(--border);border-radius:7px;overflow:hidden;}
+  .mode-toggle button{border:none;background:transparent;color:var(--text-dim);padding:7px 14px;font-weight:700;font-size:12.5px;cursor:pointer;}
+  .mode-toggle button.active{background:var(--cyan-2);color:#04202b;}
+
+  .sp-block{margin-bottom:22px;}
+  .sp-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;}
+  .sp-head .name{font-weight:700;font-size:14.5px;}
+  .sp-head .val{font-family:var(--font-mono);font-weight:700;font-size:20px;color:var(--cyan-2);}
+  .sp-range-labels{display:flex;justify-content:space-between;font-size:12px;color:var(--text-faint);margin-bottom:6px;}
+  .sp-range-labels .actual{color:var(--text-dim);}
+  .sp-range-labels .actual b{color:var(--green);font-family:var(--font-mono);}
+  input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:5px;border-radius:3px;background:var(--border);outline:none;margin:4px 0;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:17px;height:17px;border-radius:50%;background:var(--cyan-2);border:3px solid #04202b;cursor:pointer;box-shadow:0 0 0 3px rgba(56,189,248,.18);}
+  input[type=range]::-moz-range-thumb{width:17px;height:17px;border-radius:50%;background:var(--cyan-2);border:3px solid #04202b;cursor:pointer;}
+  .preset-row{display:flex;gap:10px;margin-top:12px;}
+  .preset-btn{flex:1;padding:9px 0;border-radius:7px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-dim);font-weight:700;font-size:12.5px;cursor:pointer;font-family:var(--font-mono);}
+  .preset-btn:hover{color:var(--text);border-color:#2a3646;}
+  .note-box{background:var(--bg-panel-2);border:1px solid var(--border-soft);border-radius:8px;padding:13px 15px;font-size:12.5px;color:var(--text-dim);line-height:1.6;margin-top:6px;}
+  .note-box b{color:var(--cyan-2);}
+  .note-box .pid{float:right;text-align:right;}
+  .note-box .pid .lbl{display:block;color:var(--text-faint);font-size:11px;}
+  .note-box .pid .v{color:var(--green);font-weight:700;}
+
+  /* ---------- Energy / Trends ---------- */
+  .range-tabs{display:flex;gap:6px;}
+  .range-tabs button{padding:7px 13px;border-radius:6px;border:1px solid var(--border);background:var(--bg-input);color:var(--text-dim);font-weight:700;font-size:12.5px;cursor:pointer;}
+  .range-tabs button.active{background:rgba(34,211,238,.12);border-color:var(--cyan);color:var(--cyan);}
+  .egrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:18px;}
+  .stat2-value{font-family:var(--font-mono);font-size:24px;font-weight:700;}
+  .stat2-sub{font-size:12px;color:var(--green);margin-top:8px;font-weight:600;}
+  .chart-legend{display:flex;gap:18px;margin-left:auto;font-size:12px;color:var(--text-dim);font-weight:500;}
+  .chart-legend span{display:flex;align-items:center;gap:6px;}
+  .chart-legend i{width:14px;height:2.5px;border-radius:2px;display:inline-block;}
+  .chart-wrap{width:100%;overflow:hidden;}
+  .chart-wrap svg{width:100%;height:auto;display:block;}
+
+  .trend-two{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;}
+  @media(max-width:980px){.trend-two{grid-template-columns:1fr;}}
+  .pf-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;text-align:center;}
+  .pf-value{font-family:var(--font-mono);font-size:44px;font-weight:800;color:var(--green);}
+  .pf-label{color:var(--text-dim);font-size:13px;margin-top:10px;}
+  .pf-bar-track{width:100%;max-width:280px;height:7px;background:var(--bg-input);border-radius:4px;margin-top:18px;overflow:hidden;}
+  .pf-bar-fill{height:100%;background:linear-gradient(90deg,#0891b2,var(--green));border-radius:4px;transition:width .3s;}
+
+  /* ---------- Alarms ---------- */
+  .alarm-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px;}
+  .unack-pill{background:var(--red-dim);border:1px solid rgba(239,68,68,.4);color:#fca5a5;font-weight:700;font-size:12.5px;padding:8px 14px;border-radius:7px;}
+  table{width:100%;border-collapse:collapse;}
+  thead th{text-align:left;color:var(--text-faint);font-size:12px;font-weight:600;padding:0 14px 12px;border-bottom:1px solid var(--border);}
+  tbody td{padding:15px 14px;border-bottom:1px solid var(--border-soft);font-size:13.5px;vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  .sev-pill{font-size:10.5px;font-weight:800;padding:4px 9px;border-radius:5px;letter-spacing:.4px;}
+  .sev-INFO{background:rgba(34,211,238,.1);color:var(--cyan);}
+  .sev-WARNING{background:var(--amber-dim);color:var(--amber);}
+  .sev-CRITICAL{background:var(--red-dim);color:#fca5a5;}
+  .src-link{color:var(--cyan-2);font-family:var(--font-mono);font-size:12.5px;}
+  .status-ack{color:var(--text-faint);font-weight:600;font-size:12.5px;}
+  .status-unack{color:var(--amber);font-weight:700;font-size:12.5px;}
+  .ack-btn{background:var(--cyan-2);color:#04202b;border:none;padding:6px 13px;border-radius:6px;font-weight:700;font-size:12px;cursor:pointer;}
+  .ack-btn:hover{background:#5ec9fb;}
+  .empty-cell{color:var(--text-faint);}
+
+  /* ---------- Settings ---------- */
+  .settings-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px;}
+  @media(max-width:1150px){.settings-grid{grid-template-columns:1fr 1fr;}}
+  @media(max-width:760px){.settings-grid{grid-template-columns:1fr;}}
+  .field{margin-bottom:16px;}
+  .field:last-child{margin-bottom:0;}
+  .field label{display:block;font-size:12.5px;color:var(--text-dim);margin-bottom:7px;}
+  .field input{
+    width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:7px;
+    padding:10px 12px;color:var(--text);font-family:var(--font-mono);font-size:13.5px;
+  }
+  .field input:focus{outline:none;border-color:var(--cyan-2);}
+  .priv-box{background:var(--bg-panel-2);border:1px solid var(--border-soft);border-radius:8px;padding:16px;}
+  .priv-box .u{font-weight:700;color:var(--text);font-size:13.5px;}
+  .priv-box .lvl{color:var(--green);font-weight:700;font-size:13px;margin-top:4px;}
+  .priv-box .perms{color:var(--text-dim);font-size:12.5px;margin-top:12px;line-height:1.6;}
+
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:#232f3e;border-radius:6px;}
+
+  @media(max-width:860px){
+    .sidebar{width:76px;flex:0 0 76px;}
+    .nav-item span.lbl{display:none;}
+    .nav-section-label{display:none;}
+    .sim-box{display:none;}
+    .tb-meta{display:none;}
+    .nav-badge{position:absolute;top:4px;right:4px;}
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+/* ============================ ICONS ============================ */
+const ICON_ATTRS = 'width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+const ICONS = {
+  activity:`<svg ${ICON_ATTRS}><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`,
+  wrench:`<svg ${ICON_ATTRS}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.4-3.4a6 6 0 0 1-8.1 8.1L6.4 20.6a2.1 2.1 0 0 1-3-3L10.1 11a6 6 0 0 1 8.1-8.1l-3.5 3.4z"/></svg>`,
+  zap:`<svg ${ICON_ATTRS}><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>`,
+  alertTriangle:`<svg ${ICON_ATTRS}><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13.5"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+  barChart:`<svg ${ICON_ATTRS}><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12.5" y="8" width="3" height="10"/><rect x="18" y="5" width="3" height="13"/></svg>`,
+  settings:`<svg ${ICON_ATTRS}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+  cpu:`<svg ${ICON_ATTRS}><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>`,
+  gauge:`<svg ${ICON_ATTRS}><path d="M12 14 15.5 9.5"/><circle cx="12" cy="14" r="1"/><path d="M4.6 19a9 9 0 1 1 14.8 0"/></svg>`,
+  server:`<svg ${ICON_ATTRS}><rect x="2" y="4" width="20" height="7" rx="1.5"/><rect x="2" y="14" width="20" height="7" rx="1.5"/><line x1="6" y1="7.5" x2="6" y2="7.5"/><line x1="6" y1="17.5" x2="6" y2="17.5"/></svg>`,
+  layers:`<svg ${ICON_ATTRS}><polygon points="12 2 2 8 12 14 22 8 12 2"/><polyline points="2 13 12 19 22 13"/></svg>`,
+  radio:`<svg ${ICON_ATTRS}><circle cx="12" cy="12" r="2"/><path d="M8.5 15.5a5 5 0 0 1 0-7"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M5.5 18.5a9 9 0 0 1 0-13"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>`,
+  play:`<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 21 12 6 21 6 3"/></svg>`,
+  square:`<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`,
+  alertOctagon:`<svg ${ICON_ATTRS}><path d="M12 8v4"/><path d="M12 16h.01"/><circle cx="12" cy="12" r="9"/></svg>`,
+  alertCircleSmall:`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12.5"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`
+};
+
+/* ============================ STATE ============================ */
+const state = {
+  page:'overview',
+  running:true,
+  estop:false,
+  mode:'AUTO',
+  spRpm:1750,
+  spHz:60,
+  rpm:0,
+  hz:0,
+  current:0,
+  voltage:480.2,
+  pf:0,
+  power:0,
+  totalEnergy:14820.5,
+  todayConsumption:1482.5,
+  yesterdayTotal:1650.0,
+  peakPower:42.4,
+  peakTime:'11:15 AM',
+  tariff:0.12,
+  cpuLoad:18.4,
+  scanTime:2.1,
+  heatsink:48.5,
+  bearingTemp:52.1,
+  dcBus:678,
+  plcPing:4,
+  simSpeed:1,
+  timeRange:'24H',
+  settings:{plcIp:'192.168.10.50',tcpPort:502,pollInterval:100,maxCurrentTrip:55.0,maxVfdTemp:75.0,voltageImbalance:3.0},
+  historyBase:[],
+  historyLive:[],
+  alarms:[
+    {id:'ALM-586',sev:'INFO',source:'HMI-CONSOLE',desc:'Motor stop command executed by operator',time:'14:14:31',ack:false},
+    {id:'ALM-121',sev:'INFO',source:'HMI-CONSOLE',desc:'Motor start command executed by operator',time:'14:12:35',ack:true},
+    {id:'ALM-933',sev:'INFO',source:'HMI-CONSOLE',desc:'Motor stop command executed by operator',time:'14:12:32',ack:false},
+    {id:'ALM-101',sev:'WARNING',source:'VFD-01',desc:'VFD Heatsink Temperature Elevated (48.5°C)',time:'14:22:10',ack:false},
+    {id:'ALM-102',sev:'INFO',source:'EM-01',desc:'Energy baseline target achieved for shift A',time:'13:00:00',ack:true}
+  ],
+  alarmSeq:587
+};
+
+function seedHistory(){
+  const shape=[29,30,31,33,35,37,38,38,37,36,34,32,31,30,30,31,33,34,35,36,36,35,34,33,32,32,33,34,35,36,37,38,39,40,41,42,42,41,40,39];
+  return shape.map(v=>({power:v,current:v*1.05+3,voltage:479.8+Math.sin(v)*0.6}));
+}
+state.historyBase = seedHistory();
+
+/* ============================ HELPERS ============================ */
+function fmt(n,d=1){return Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});}
+function fmtInt(n){return Math.round(n).toLocaleString('en-US');}
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+function nowStr(){
+  const d=new Date();
+  let h=d.getHours();const m=d.getMinutes();const s=d.getSeconds();
+  const ap=h>=12?'PM':'AM'; h=h%12; if(h===0)h=12;
+  return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')} ${ap}`;
+}
+function nowShort(){
+  const d=new Date();
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+/* ============================ NAV CONFIG ============================ */
+const NAV = [
+  {id:'overview',label:'Overview',icon:'activity'},
+  {id:'motor',label:'Motor Control',icon:'wrench'},
+  {id:'energy',label:'Energy Monitoring',icon:'zap'},
+  {id:'alarms',label:'Alarms & Events',icon:'alertTriangle'},
+  {id:'trends',label:'Trends & Analytics',icon:'barChart'},
+  {id:'settings',label:'System Settings',icon:'settings'}
+];
+
+/* ============================ RENDER: SHELL ============================ */
+function renderAll(){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderTopbar()}
+    <div class="body">
+      ${renderSidebar()}
+      <div class="main" id="main">${renderPage()}</div>
+    </div>
+  `;
+}
+
+function renderTopbar(){
+  const unackCount = state.alarms.filter(a=>!a.ack).length;
+  return `
+  <div class="topbar">
+    <div class="tb-left">
+      <div class="logo">
+        <div class="icon-box">${ICONS.cpu}</div>
+        SCADA-HMI v4.8
+      </div>
+      <div class="tb-meta">
+        <span><b>Plant:</b> Alpha-03</span>
+        <span><b>Line:</b> Extruder Line 4</span>
+        <span><b>Operator:</b> OP-8804 (Shift A)</span>
+      </div>
+    </div>
+    <div class="tb-right">
+      <div class="tb-status">
+        <span class="status-pill"><span class="dot"></span>PLC: OK (<span id="tb-plc-ping">${state.plcPing}</span>ms)</span>
+        <span class="status-pill"><span class="dot"></span>VFD: ONLINE</span>
+        <span class="status-pill"><span class="dot"></span>Meter: SYNC</span>
+      </div>
+      <span class="clock" id="tb-clock">${nowStr()}</span>
+      <button class="estop-btn ${state.estop?'active':''}" data-action="estop">${ICONS.alertOctagon} E-STOP</button>
+    </div>
+  </div>`;
+}
+
+function renderSidebar(){
+  const unackCount = state.alarms.filter(a=>!a.ack).length;
+  return `
+  <div class="sidebar">
+    <div class="nav-section-label">CONTROL CONSOLE</div>
+    <div class="nav">
+      ${NAV.map(n=>`
+        <div class="nav-item ${state.page===n.id?'active':''}" data-action="set-page" data-page="${n.id}">
+          ${ICONS[n.icon]}<span class="lbl">${n.label}</span>
+          ${n.id==='alarms' && unackCount>0 ? `<span class="nav-badge">${unackCount}</span>`:''}
+        </div>`).join('')}
+    </div>
+    <div class="sidebar-foot">
+      <div class="sim-box">
+        <div class="sim-top">
+          <div class="sim-title">${ICONS.radio} Sim Engine</div>
+          <div class="active-badge"><span class="pulse-dot"></span>ACTIVE</div>
+        </div>
+        <div class="sim-label"><span>Simulation Speed</span></div>
+        <div class="sim-speeds">
+          ${[1,2,5].map(s=>`<button class="sim-speed-btn ${state.simSpeed===s?'active':''}" data-action="set-sim-speed" data-value="${s}">${s}x</button>`).join('')}
+        </div>
+      </div>
+      <div class="sidebar-meta"><span>HMI Built: 2026.06</span><span>IEC-61131</span></div>
+    </div>
+  </div>`;
+}
+
+/* ============================ RENDER: PAGE ROUTER ============================ */
+function renderPage(){
+  switch(state.page){
+    case 'motor': return pageMotor();
+    case 'energy': return pageEnergy();
+    case 'alarms': return pageAlarms();
+    case 'trends': return pageTrends();
+    case 'settings': return pageSettings();
+    default: return pageOverview();
+  }
+}
+
+/* ============================ PAGE: OVERVIEW ============================ */
+function pageOverview(){
+  const runState = state.estop ? 'E-STOP' : (state.running ? 'RUNNING' : 'STOPPED');
+  const desc = state.estop ? 'Emergency stop latched. Reset E-STOP to resume operation.'
+    : (state.running ? 'Drive system is running under supervisory control.' : 'Drive system is in standby mode. Ready for operator start command.');
+  const cardCls = state.running && !state.estop ? 'running' : 'stopped';
+  return `
+  <div class="banner">
+    <div class="banner-left">
+      <div class="banner-dot ${state.estop?'trip':(state.running?'run':'')}"></div>
+      <div>
+        <div class="banner-title">SYSTEM STATE: <span id="ov-state-title">${runState}</span></div>
+        <div class="banner-desc" id="ov-state-desc">${desc}</div>
+      </div>
+    </div>
+    <div class="banner-right">
+      <div class="mode-block"><div class="lbl">Control Mode</div><div class="val">AUTO (REMOTE)</div></div>
+      ${state.running
+        ? `<button class="btn btn-stop-solid" data-action="toggle-run" ${state.estop?'disabled':''}>${ICONS.square} STOP MOTOR</button>`
+        : `<button class="btn btn-start" data-action="toggle-run" ${state.estop?'disabled':''}>${ICONS.play} START MOTOR</button>`}
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:18px;">
+    <div class="section-label">${ICONS.layers} OPERATIONAL PROCESS DIAGRAM (SCADA FLOW)<span class="rgt">Live Data Sync: 100ms polling</span></div>
+    <div class="grid-nodes">
+      <div class="node-card">
+        <div class="node-head"><div class="node-icon">${ICONS.cpu}</div><div class="node-head-text"><div class="node-name">Allen-Bradley PLC</div><div class="node-sub">ControlLogix 5580</div></div><div class="node-tag">NODE 01</div></div>
+        <div class="node-row"><span>CPU Load:</span><b id="ov-node-cpu">${fmt(state.cpuLoad,1)}%</b></div>
+        <div class="node-row"><span>Scan Time:</span><b id="ov-node-scan">${fmt(state.scanTime,1)} ms</b></div>
+        <div class="node-row"><span>Bus Status:</span><b class="ok">OK</b></div>
+      </div>
+      <div class="node-card">
+        <div class="node-head"><div class="node-icon">${ICONS.gauge}</div><div class="node-head-text"><div class="node-name">PowerFlex 755 VFD</div><div class="node-sub" id="ov-vfd-header">${fmt(state.hz,0)} Hz Output</div></div><div class="node-tag">NODE 02</div></div>
+        <div class="node-row"><span>DC Bus:</span><b id="ov-node-dcbus">${fmtInt(state.dcBus)} VDC</b></div>
+        <div class="node-row"><span>Heatsink:</span><b id="ov-node-heatsink">${fmt(state.heatsink,1)}°C</b></div>
+        <div class="node-row"><span>Modulation:</span><b>SVM 4kHz</b></div>
+      </div>
+      <div class="node-card">
+        <div class="node-head"><div class="node-icon">${ICONS.server}</div><div class="node-head-text"><div class="node-name">AC Induction Motor</div><div class="node-sub">250 kW / 480V</div></div><div class="node-tag">NODE 03</div></div>
+        <div class="node-row"><span>Speed:</span><b id="ov-node-rpm">${fmtInt(state.rpm)} RPM</b></div>
+        <div class="node-row"><span>Current:</span><b id="ov-node-current">${fmt(state.current,0)} A</b></div>
+        <div class="node-row"><span>Bearing Temp:</span><b id="ov-node-bearing">${fmt(state.bearingTemp,1)}°C</b></div>
+      </div>
+      <div class="node-card">
+        <div class="node-head"><div class="node-icon">${ICONS.zap}</div><div class="node-head-text"><div class="node-name">SEL-735 Power Meter</div><div class="node-sub" id="ov-meter-header">${fmt(state.power,0)} kW Active</div></div><div class="node-tag">NODE 04</div></div>
+        <div class="node-row"><span>Voltage:</span><b id="ov-node-voltage">${fmt(state.voltage,1)} V</b></div>
+        <div class="node-row"><span>Power Factor:</span><b id="ov-node-pf">${fmt(state.pf,2)}</b></div>
+        <div class="node-row"><span>Total kWh:</span><b id="ov-node-kwh">${fmt(state.totalEnergy,1)}</b></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-stats">
+    <div class="stat-card ${cardCls}">
+      <div class="stat-label">Machine Status</div>
+      <div class="stat-value ${cardCls}" id="ov-card-status">${runState}</div>
+      <div class="stat-foot"><span>Primary Interlock Closed</span><span class="dot"></span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Motor Speed</div>
+      <div class="stat-value" id="ov-card-rpm">${fmtInt(state.rpm)}<span class="unit">RPM</span></div>
+      <div class="stat-foot"><span>Setpoint: ${fmtInt(state.spRpm)} RPM</span><span class="dot"></span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">VFD Frequency</div>
+      <div class="stat-value" id="ov-card-hz">${fmt(state.hz,0)}<span class="unit">Hz</span></div>
+      <div class="stat-foot"><span>Setpoint: ${fmt(state.spHz,0)} Hz</span><span class="dot"></span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Motor Current</div>
+      <div class="stat-value" id="ov-card-current">${fmt(state.current,0)}<span class="unit">A</span></div>
+      <div class="stat-foot"><span>Max Rating: 55.0 A</span><span class="dot"></span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Line Voltage</div>
+      <div class="stat-value" id="ov-card-voltage">${fmt(state.voltage,1)}<span class="unit">V</span></div>
+      <div class="stat-foot"><span>3-Phase RMS (L-L)</span><span class="dot"></span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Active Power</div>
+      <div class="stat-value" id="ov-card-power">${fmt(state.power,0)}<span class="unit">kW</span></div>
+      <div class="stat-foot"><span>Instantaneous Load</span><span class="dot"></span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Energy</div>
+      <div class="stat-value" id="ov-card-energy">${fmt(state.totalEnergy,1)}<span class="unit">kWh</span></div>
+      <div class="stat-foot"><span>Shift Consumption</span><span class="dot"></span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Power Factor</div>
+      <div class="stat-value" id="ov-card-pf">${fmt(state.pf,2)}</div>
+      <div class="stat-foot"><span>High Efficiency (&gt;0.90)</span><span class="dot"></span></div>
+    </div>
+  </div>`;
+}
+
+/* ============================ PAGE: MOTOR CONTROL ============================ */
+function pageMotor(){
+  const runInactive = !state.running;
+  return `
+  <div class="page-header">
+    <div class="page-header-row">
+      <div><h1>Motor &amp; VFD Control Console</h1><p>Direct parameter writes to Allen-Bradley PLC &amp; PowerFlex 755 drive.</p></div>
+      <div class="mode-toggle">
+        <button class="${state.mode==='AUTO'?'active':''}" data-action="set-mode" data-mode="AUTO">AUTO</button>
+        <button class="${state.mode==='MANUAL'?'active':''}" data-action="set-mode" data-mode="MANUAL">MANUAL</button>
+      </div>
+    </div>
+  </div>
+  <div class="two-col">
+    <div class="panel">
+      <div class="section-label">COMMAND &amp; SAFETY INTERLOCKS</div>
+      <div class="interlock-row"><span class="il-name">Run Command</span><span class="badge ${state.running?'green':'grey'}" id="mc-run-status">${state.running?'ACTIVE':'INACTIVE'}</span></div>
+      <div class="interlock-row"><span class="il-name">Safety Gate Interlock</span><span class="badge green">CLOSED (SAFE)</span></div>
+      <div class="interlock-row"><span class="il-name">Thermal Overload Relay</span><span class="badge green">NORMAL</span></div>
+      <div class="ctl-buttons">
+        <button class="btn btn-start" data-action="start" ${state.running||state.estop?'disabled':''}>${ICONS.play} START</button>
+        <button class="btn btn-outline" data-action="stop" ${runInactive?'disabled':''}>${ICONS.square} STOP</button>
+      </div>
+      <button class="full-estop ${state.estop?'active':''}" data-action="estop">${ICONS.alertOctagon} EMERGENCY STOP (E-STOP)</button>
+    </div>
+
+    <div class="panel">
+      <div class="section-label">SETPOINT VS ACTUAL FEEDBACK</div>
+      <div class="sp-block">
+        <div class="sp-head"><span class="name">Motor Speed (RPM)</span><span class="val">${fmtInt(state.spRpm)} RPM</span></div>
+        <div class="sp-range-labels"><span>0 RPM</span><span class="actual">Actual: <b id="mc-actual-rpm">${fmtInt(state.rpm)}</b> RPM</span><span>2000 RPM</span></div>
+        <input type="range" min="0" max="2000" step="10" value="${state.spRpm}" data-bind="spRpm" id="rpm-slider">
+        <div class="preset-row">
+          <button class="preset-btn" data-action="preset-rpm" data-value="1000">1000 RPM</button>
+          <button class="preset-btn" data-action="preset-rpm" data-value="1500">1500 RPM</button>
+          <button class="preset-btn" data-action="preset-rpm" data-value="1750">1750 RPM</button>
+        </div>
+      </div>
+      <div class="sp-block" style="margin-bottom:6px;">
+        <div class="sp-head"><span class="name">VFD Frequency (Hz)</span><span class="val">${fmt(state.spHz,0)} Hz</span></div>
+        <div class="sp-range-labels"><span>0.0 Hz</span><span class="actual">Actual: <b id="mc-actual-hz">${fmt(state.hz,0)}</b> Hz</span><span>60.0 Hz</span></div>
+        <input type="range" min="0" max="60" step="1" value="${state.spHz}" data-bind="spHz" id="hz-slider">
+        <div class="preset-row">
+          <button class="preset-btn" data-action="preset-hz" data-value="30">30 Hz</button>
+          <button class="preset-btn" data-action="preset-hz" data-value="45">45 Hz</button>
+          <button class="preset-btn" data-action="preset-hz" data-value="60">60 Hz</button>
+        </div>
+      </div>
+      <div class="note-box">
+        <div class="pid"><span class="lbl">PID Loop:</span><span class="v">STABLE</span></div>
+        Note: In <b>${state.mode}</b> mode, setpoints are managed by the supervisory PLC PID loop. Switch to ${state.mode==='AUTO'?'MANUAL':'AUTO'} for ${state.mode==='AUTO'?'direct operator control.':'supervisory control.'}
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ============================ PAGE: ENERGY MONITORING ============================ */
+function combinedHistory(){ return state.historyBase.concat(state.historyLive); }
+
+function chartSVG(id, seriesA, seriesB, colorA, colorB, maxVal, labels){
+  const w=1000,h=300,pad=36;
+  const n = seriesA.length;
+  const xFor = i => pad + (i/(n-1))*(w-pad*2-30);
+  const yFor = v => h-pad - clamp(v/maxVal,0,1)*(h-pad*1.4);
+  const ptsA = seriesA.map((v,i)=>`${xFor(i).toFixed(1)},${yFor(v).toFixed(1)}`).join(' ');
+  const ptsB = seriesB.map((v,i)=>`${xFor(i).toFixed(1)},${yFor(v).toFixed(1)}`).join(' ');
+  const gridLines = [0,0.25,0.5,0.75,1].map(f=>{
+    const y = h-pad - f*(h-pad*1.4);
+    const val = Math.round(maxVal*f);
+    return `<line x1="${pad}" y1="${y}" x2="${w-30}" y2="${y}" stroke="#141d29" stroke-width="1"/>
+            <text x="${pad-8}" y="${y+4}" fill="#54637a" font-size="11" text-anchor="end" font-family="ui-monospace,monospace">${val}</text>
+            <text x="${w-24}" y="${y+4}" fill="#54637a" font-size="11" text-anchor="start" font-family="ui-monospace,monospace">${val}</text>`;
+  }).join('');
+  const xLabels = labels.map((lb,i)=>{
+    const idx = Math.round(i*(n-1)/(labels.length-1));
+    return `<text x="${xFor(idx).toFixed(1)}" y="${h-10}" fill="#54637a" font-size="11" text-anchor="middle" font-family="ui-monospace,monospace">${lb}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    ${gridLines}
+    ${xLabels}
+    <polyline id="${id}-a" points="${ptsA}" fill="none" stroke="${colorA}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <polyline id="${id}-b" points="${ptsB}" fill="none" stroke="${colorB}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function pageEnergy(){
+  const hist = combinedHistory();
+  const powerSeries = hist.map(p=>p.power);
+  const currentSeries = hist.map(p=>p.current);
+  const labels = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00', nowShort()];
+  return `
+  <div class="page-header">
+    <div class="page-header-row">
+      <div><h1>Real-Time Energy &amp; Power Quality</h1><p>SEL-735 Meter Telemetry &amp; Shift Energy Accounting.</p></div>
+      <div class="range-tabs">
+        ${['1H','8H','24H','7D','30D'].map(r=>`<button class="${state.timeRange===r?'active':''}" data-action="set-range" data-value="${r}">${r}</button>`).join('')}
+      </div>
+    </div>
+  </div>
+  <div class="egrid">
+    <div class="stat-card">
+      <div class="stat-label">Today's Consumption</div>
+      <div class="stat2-value" id="em-today">${fmt(state.todayConsumption,1)} <span class="unit" style="font-size:14px;">kWh</span></div>
+      <div class="stat2-sub" id="em-cost-today">Est. Cost: $${fmt(state.todayConsumption*state.tariff,2)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Yesterday's Total</div>
+      <div class="stat2-value">${fmt(state.yesterdayTotal,1)} <span class="unit" style="font-size:14px;">kWh</span></div>
+      <div class="stat2-sub" style="color:var(--text-faint);">Est. Cost: $${fmt(state.yesterdayTotal*state.tariff,2)}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Daily Peak Power</div>
+      <div class="stat2-value" id="em-peak">${fmt(state.peakPower,1)} <span class="unit" style="font-size:14px;">kW</span></div>
+      <div class="stat2-sub" style="color:var(--text-faint);">Peak at <span id="em-peak-time">${state.peakTime}</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Estimated Monthly Cost</div>
+      <div class="stat2-value">$${fmt(state.todayConsumption*30*state.tariff/1,2)} <span class="unit" style="font-size:14px;">USD</span></div>
+      <div class="stat2-sub" style="color:var(--text-faint);">Tariff: $${fmt(state.tariff,2)}/kWh</div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="section-label" style="margin-bottom:6px;">ACTIVE POWER TREND (${state.timeRange})
+      <span class="chart-legend">
+        <span><i style="background:${'#38bdf8'}"></i>Active Power (kW)</span>
+        <span><i style="background:${'#f59e0b'}"></i>Motor Current (A)</span>
+      </span>
+    </div>
+    <div class="chart-wrap" id="em-chart-wrap">${chartSVG('em-chart',powerSeries,currentSeries,'#38bdf8','#f59e0b',60,labels)}</div>
+  </div>`;
+}
+
+/* ============================ PAGE: ALARMS ============================ */
+function pageAlarms(){
+  const unack = state.alarms.filter(a=>!a.ack).length;
+  return `
+  <div class="alarm-top">
+    <div><h1 style="margin:0 0 4px;font-size:20px;">Active Alarms &amp; Event Log</h1><p style="margin:0;color:var(--text-dim);font-size:13.5px;">Real-time SCADA alarm queue. Unacknowledged faults require operator action.</p></div>
+    <div class="unack-pill" id="alarm-unack-pill">Active Unack: ${unack}</div>
+  </div>
+  <div class="panel" style="padding:0;overflow:hidden;">
+    <table>
+      <thead><tr><th style="padding-left:22px;">Severity</th><th>Alarm ID</th><th>Source</th><th>Description</th><th>Timestamp</th><th>Status</th><th style="text-align:right;padding-right:22px;">Action</th></tr></thead>
+      <tbody>
+        ${state.alarms.map(a=>`
+          <tr>
+            <td style="padding-left:22px;"><span class="sev-pill sev-${a.sev}">${a.sev}</span></td>
+            <td style="font-family:var(--font-mono);font-weight:600;">${a.id}</td>
+            <td><span class="src-link">${a.source}</span></td>
+            <td>${a.desc}</td>
+            <td style="font-family:var(--font-mono);color:var(--text-dim);">${a.time}</td>
+            <td>${a.ack ? `<span class="status-ack">ACKNOWLEDGED</span>` : `<span class="status-unack">UNACKNOWLEDGED</span>`}</td>
+            <td style="text-align:right;padding-right:22px;">${a.ack ? '' : `<button class="ack-btn" data-action="ack" data-id="${a.id}">ACK</button>`}</td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+/* ============================ PAGE: TRENDS ============================ */
+function pageTrends(){
+  const hist = combinedHistory();
+  const voltageSeries = hist.map(p=>p.voltage*1.25);
+  const currentSeries = hist.map(p=>p.current*1.25);
+  const labels = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00', nowShort()];
+  const pfPct = clamp(state.pf*100,0,100);
+  return `
+  <div class="page-header"><h1>Historical Trends &amp; SCADA Analytics</h1><p>Multi-channel signal correlation and telemetry recording.</p></div>
+  <div class="trend-two">
+    <div class="panel">
+      <div class="section-label">VOLTAGE &amp; CURRENT CORRELATION</div>
+      <div class="chart-wrap">${chartSVG('tr-chart',voltageSeries,currentSeries,'#22c55e','#f59e0b',600,labels)}</div>
+    </div>
+    <div class="panel pf-panel">
+      <div class="section-label" style="align-self:flex-start;">POWER FACTOR STABILITY</div>
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <div class="pf-value" id="tr-pf-value">${fmt(state.pf,2)} <span style="font-size:22px;color:var(--text-dim);">PF</span></div>
+        <div class="pf-label" id="tr-pf-label">${state.pf<=0.01 ? 'No Load — Capacitor Bank Standby' : 'Capacitor Bank Stage '+(state.pf>0.5?'2':'1')+' Engaged'}</div>
+        <div class="pf-bar-track"><div class="pf-bar-fill" id="tr-pf-bar" style="width:${pfPct}%;"></div></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ============================ PAGE: SETTINGS ============================ */
+function pageSettings(){
+  const s = state.settings;
+  return `
+  <div class="page-header"><h1>System Configuration &amp; Calibration</h1><p>HMI Node parameters, Modbus TCP gateway settings, and user privileges.</p></div>
+  <div class="settings-grid">
+    <div class="panel">
+      <div class="section-label">MODBUS TCP GATEWAY</div>
+      <div class="field"><label>PLC IP Address</label><input type="text" value="${s.plcIp}" data-setting="plcIp"></div>
+      <div class="field"><label>TCP Port</label><input type="text" value="${s.tcpPort}" data-setting="tcpPort"></div>
+      <div class="field"><label>Polling Interval</label><input type="text" value="${s.pollInterval} ms" data-setting="pollInterval"></div>
+    </div>
+    <div class="panel">
+      <div class="section-label">ALARM THRESHOLDS</div>
+      <div class="field"><label>Max Current Trip (A)</label><input type="text" value="${fmt(s.maxCurrentTrip,1)}" data-setting="maxCurrentTrip"></div>
+      <div class="field"><label>Max VFD Temp (°C)</label><input type="text" value="${fmt(s.maxVfdTemp,1)}" data-setting="maxVfdTemp"></div>
+      <div class="field"><label>Voltage Imbalance (%)</label><input type="text" value="${fmt(s.voltageImbalance,1)}" data-setting="voltageImbalance"></div>
+    </div>
+    <div class="panel">
+      <div class="section-label">OPERATOR PRIVILEGE</div>
+      <div class="priv-box">
+        <div class="u">Current User: OP-8804</div>
+        <div class="lvl">Level 3: Senior Plant Operator</div>
+        <div class="perms">Permissions: Start/Stop, Setpoint Tuning, Alarm Ack.</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ============================ PHYSICS / TICK ============================ */
+let tickCount = 0;
+function tick(){
+  const dtReal = 0.2;
+  const dtSim = dtReal * state.simSpeed;
+  tickCount++;
+
+  const runningEffective = state.running && !state.estop;
+  const targetRpm = runningEffective ? state.spRpm : 0;
+  const targetHz = runningEffective ? state.spHz : 0;
+  const rpmRate = 420; // rpm per sim-second
+  const hzRate = 22;
+  state.rpm += clamp(targetRpm-state.rpm, -rpmRate*dtSim, rpmRate*dtSim);
+  state.hz  += clamp(targetHz-state.hz, -hzRate*dtSim, hzRate*dtSim);
+  state.rpm = Math.max(0,state.rpm);
+  state.hz = Math.max(0,state.hz);
+
+  const loadRatio = clamp(state.rpm/2000,0,1);
+  const targetCurrent = loadRatio*52 * (0.97+0.06*Math.sin(tickCount/9));
+  state.current += clamp(targetCurrent-state.current, -30*dtSim, 30*dtSim);
+  state.current = Math.max(0,state.current);
+
+  const targetPf = state.rpm>80 ? 0.92 : 0;
+  state.pf += clamp(targetPf-state.pf, -0.6*dtSim, 0.6*dtSim);
+  state.pf = Math.max(0,state.pf);
+
+  state.voltage = 480.2 + Math.sin(tickCount/14)*0.35;
+
+  state.power = (Math.sqrt(3)*state.voltage*state.current*state.pf)/1000;
+  if(state.power>state.peakPower){ state.peakPower = state.power; state.peakTime = nowStr().replace(':'+String(new Date().getSeconds()).padStart(2,'0'),''); }
+
+  const kwhInc = state.power * (dtSim/3600);
+  state.totalEnergy += kwhInc;
+  state.todayConsumption += kwhInc;
+
+  const targetHeat = runningEffective ? 55+loadRatio*8 : 44;
+  state.heatsink += clamp(targetHeat-state.heatsink, -1.2*dtSim, 1.2*dtSim);
+  const targetBearing = runningEffective ? 58+loadRatio*6 : 48;
+  state.bearingTemp += clamp(targetBearing-state.bearingTemp, -1*dtSim, 1*dtSim);
+  state.dcBus = runningEffective ? 678 + Math.sin(tickCount/11)*3 : 671 + Math.sin(tickCount/11)*1.5;
+
+  state.cpuLoad = 17 + Math.sin(tickCount/7)*3 + (runningEffective?4:0);
+  state.scanTime = 2.0 + Math.abs(Math.sin(tickCount/13))*0.6;
+  state.plcPing = 3 + Math.round(Math.abs(Math.sin(tickCount/17))*3);
+
+  if(tickCount % 5 === 0){
+    state.historyLive.push({power:state.power, current:state.current, voltage:state.voltage});
+    if(state.historyLive.length>80) state.historyLive.shift();
+  }
+
+  patchLiveDOM();
+}
+
+/* ============================ DOM PATCHING (no full rerender) ============================ */
+function setText(id,val){ const el=document.getElementById(id); if(el) el.textContent = val; }
+function setAttr(id,attr,val){ const el=document.getElementById(id); if(el) el.setAttribute(attr,val); }
+
+function patchLiveDOM(){
+  setText('tb-clock', nowStr());
+  setText('tb-plc-ping', state.plcPing);
+
+  if(state.page==='overview'){
+    setText('ov-node-cpu', fmt(state.cpuLoad,1)+'%');
+    setText('ov-node-scan', fmt(state.scanTime,1)+' ms');
+    setText('ov-vfd-header', fmt(state.hz,0)+' Hz Output');
+    setText('ov-node-dcbus', fmtInt(state.dcBus)+' VDC');
+    setText('ov-node-heatsink', fmt(state.heatsink,1)+'°C');
+    setText('ov-node-rpm', fmtInt(state.rpm)+' RPM');
+    setText('ov-node-current', fmt(state.current,0)+' A');
+    setText('ov-node-bearing', fmt(state.bearingTemp,1)+'°C');
+    setText('ov-meter-header', fmt(state.power,0)+' kW Active');
+    setText('ov-node-voltage', fmt(state.voltage,1)+' V');
+    setText('ov-node-pf', fmt(state.pf,2));
+    setText('ov-node-kwh', fmt(state.totalEnergy,1));
+    const rpmEl=document.getElementById('ov-card-rpm'); if(rpmEl) rpmEl.innerHTML = fmtInt(state.rpm)+'<span class="unit">RPM</span>';
+    const hzEl=document.getElementById('ov-card-hz'); if(hzEl) hzEl.innerHTML = fmt(state.hz,0)+'<span class="unit">Hz</span>';
+    const curEl=document.getElementById('ov-card-current'); if(curEl) curEl.innerHTML = fmt(state.current,0)+'<span class="unit">A</span>';
+    const vEl=document.getElementById('ov-card-voltage'); if(vEl) vEl.innerHTML = fmt(state.voltage,1)+'<span class="unit">V</span>';
+    const pEl=document.getElementById('ov-card-power'); if(pEl) pEl.innerHTML = fmt(state.power,0)+'<span class="unit">kW</span>';
+    const eEl=document.getElementById('ov-card-energy'); if(eEl) eEl.innerHTML = fmt(state.totalEnergy,1)+'<span class="unit">kWh</span>';
+    setText('ov-card-pf', fmt(state.pf,2));
+  }
+
+  if(state.page==='motor'){
+    setText('mc-actual-rpm', fmtInt(state.rpm));
+    setText('mc-actual-hz', fmt(state.hz,0));
+  }
+
+  if(state.page==='energy'){
+    const hist = combinedHistory();
+    setAttr('em-chart-a','points', polyPoints(hist.map(p=>p.power),60));
+    setAttr('em-chart-b','points', polyPoints(hist.map(p=>p.current),60));
+    setText('em-today', fmt(state.todayConsumption,1)+' kWh');
+    setText('em-cost-today', 'Est. Cost: $'+fmt(state.todayConsumption*state.tariff,2));
+    setText('em-peak', fmt(state.peakPower,1)+' kW');
+  }
+
+  if(state.page==='trends'){
+    const hist = combinedHistory();
+    setAttr('tr-chart-a','points', polyPoints(hist.map(p=>p.voltage*1.25),600));
+    setAttr('tr-chart-b','points', polyPoints(hist.map(p=>p.current*1.25),600));
+    setText('tr-pf-value', fmt(state.pf,2)+' PF');
+    setAttr('tr-pf-bar','style','width:'+clamp(state.pf*100,0,100)+'%;');
+    setText('tr-pf-label', state.pf<=0.01 ? 'No Load — Capacitor Bank Standby' : 'Capacitor Bank Stage '+(state.pf>0.5?'2':'1')+' Engaged');
+  }
+}
+
+function polyPoints(series,maxVal){
+  const w=1000,h=300,pad=36;
+  const n=series.length;
+  const xFor = i => pad + (i/(n-1))*(w-pad*2-30);
+  const yFor = v => h-pad - clamp(v/maxVal,0,1)*(h-pad*1.4);
+  return series.map((v,i)=>`${xFor(i).toFixed(1)},${yFor(v).toFixed(1)}`).join(' ');
+}
+
+/* ============================ ACTIONS ============================ */
+function addAlarm(sev,source,desc){
+  state.alarmSeq++;
+  state.alarms.unshift({id:'ALM-'+state.alarmSeq, sev, source, desc, time:nowStr().split(' ')[0], ack:false});
+  if(state.alarms.length>30) state.alarms.pop();
+}
+
+function handleClick(e){
+  const el = e.target.closest('[data-action]');
+  if(!el) return;
+  const action = el.dataset.action;
+
+  if(action==='set-page'){ state.page = el.dataset.page; renderAll(); return; }
+
+  if(action==='toggle-run'){
+    if(state.estop) return;
+    state.running = !state.running;
+    addAlarm('INFO','HMI-CONSOLE', state.running ? 'Motor start command executed by operator' : 'Motor stop command executed by operator');
+    renderAll(); return;
+  }
+  if(action==='start'){
+    if(state.estop || state.running) return;
+    state.running = true;
+    addAlarm('INFO','HMI-CONSOLE','Motor start command executed by operator');
+    renderAll(); return;
+  }
+  if(action==='stop'){
+    if(!state.running) return;
+    state.running = false;
+    addAlarm('INFO','HMI-CONSOLE','Motor stop command executed by operator');
+    renderAll(); return;
+  }
+  if(action==='estop'){
+    state.estop = !state.estop;
+    if(state.estop){
+      state.running = false;
+      addAlarm('CRITICAL','HMI-CONSOLE','Emergency stop activated by operator');
+    } else {
+      addAlarm('INFO','HMI-CONSOLE','Emergency stop reset by operator');
+    }
+    renderAll(); return;
+  }
+  if(action==='set-mode'){ state.mode = el.dataset.mode; renderAll(); return; }
+  if(action==='preset-rpm'){ state.spRpm = Number(el.dataset.value); renderAll(); return; }
+  if(action==='preset-hz'){ state.spHz = Number(el.dataset.value); renderAll(); return; }
+  if(action==='set-sim-speed'){ state.simSpeed = Number(el.dataset.value); renderAll(); return; }
+  if(action==='set-range'){ state.timeRange = el.dataset.value; renderAll(); return; }
+  if(action==='ack'){
+    const a = state.alarms.find(x=>x.id===el.dataset.id);
+    if(a) a.ack = true;
+    renderAll(); return;
+  }
+}
+
+function handleInput(e){
+  const t = e.target;
+  if(t.matches('input[type=range]')){
+    const bind = t.dataset.bind;
+    state[bind] = Number(t.value);
+    if(bind==='spRpm'){
+      const row = t.closest('.sp-block');
+      const valEl = row.querySelector('.sp-head .val');
+      if(valEl) valEl.textContent = fmtInt(state.spRpm)+' RPM';
+      const cardHz = document.getElementById('ov-card-rpm'); // no-op guard
+    }
+    if(bind==='spHz'){
+      const row = t.closest('.sp-block');
+      const valEl = row.querySelector('.sp-head .val');
+      if(valEl) valEl.textContent = fmt(state.spHz,0)+' Hz';
+    }
+  }
+  if(t.matches('input[data-setting]')){
+    const key = t.dataset.setting;
+    const raw = t.value.replace(/[^\d.]/g,'');
+    if(raw!=='' && !isNaN(Number(raw))) state.settings[key] = Number(raw);
+  }
+}
+
+document.body.addEventListener('click', handleClick);
+document.body.addEventListener('input', handleInput);
+
+/* ============================ INIT ============================ */
+renderAll();
+setInterval(tick, 200);
+</script>
+</body>
+</html>
